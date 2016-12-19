@@ -4,6 +4,11 @@
 import os
 import codecs
 import sys
+import requests
+import lzma
+
+SOURCES = 'http://ftp.us.debian.org/debian/dists/sid/main/source/Sources.xz'
+PACKAGES = 'http://ftp.us.debian.org/debian/dists/sid/main/binary-amd64/Packages.xz'
 
 def makeDigest(txt):
     """Parse a Packages/Sources file to a 2-level dict, keyed on package"""
@@ -20,7 +25,15 @@ def makeDigest(txt):
 
     return result
 
-    #return {x['Package']: x for x in digest}
+
+def getDigest(url):
+    r = requests.get(url)
+
+    compressed = r.content
+
+    txt = lzma.LZMADecompressor().decompress(compressed).decode()
+
+    return makeDigest(txt)
 
 
 def parseDeps(txt):
@@ -52,8 +65,11 @@ def expandDeps(depset, pdig):
 
 
 def main():
-    sdig = makeDigest(codecs.open("Sources", 'r', encoding='utf-8').read())
-    pdig = makeDigest(codecs.open("Packages", 'r', encoding='utf-8').read())
+    #sdig = makeDigest(codecs.open("Sources", 'r', encoding='utf-8').read())
+    #pdig = makeDigest(codecs.open("Packages", 'r', encoding='utf-8').read())
+
+    sdig = getDigest(SOURCES)
+    pdig = getDigest(PACKAGES)
 
     for src in sorted(sdig):
         sdig[src]['binaries'] = set()
