@@ -1,0 +1,130 @@
+#!/usr/bin/python3
+
+
+import os
+import codecs
+import sys
+
+def makeDigest(txt):
+    """Parse a Packages/Sources file to a 2-level dict, keyed on package"""
+
+    def dmap(txt):
+        return dict([x.split(': ', 1) for x in txt.split('\n') if ': ' in x])
+       
+    digest = [dmap(x) for x in txt.split('\n\n') if 'Package' in x]
+
+    result = {}
+    for dig in digest:
+        dig['Package'] = dig['Package'].split(' ')[0]
+        result[dig['Package']] = dig
+
+    return result
+
+    #return {x['Package']: x for x in digest}
+
+
+def parseDeps(txt):
+    """Parse a Depends line to a naive set of dependencies"""
+
+    rawlist = {x.split(' ')[0] for x in txt.split(', ') if x}
+    parsedlist = {x.split(':')[0] for x in rawlist}
+
+    return parsedlist
+
+
+def expandDeps(depset, pdig):
+    """Expand a set of dependencies recursively"""
+
+    new = set(depset)
+    result = set(depset)
+
+    while new:
+        result |= new
+        temp = set()
+        for dep in new:
+            try:
+                temp = temp.union(pdig[dep]['deplist'])
+            except KeyError:
+                pass
+        new = temp - result
+
+    return result
+
+
+def main():
+    sdig = makeDigest(codecs.open("Sources", 'r', encoding='utf-8').read())
+    pdig = makeDigest(codecs.open("Packages", 'r', encoding='utf-8').read())
+
+    for src in sorted(sdig):
+        sdig[src]['binaries'] = set()
+
+        sdig[src]['deplist'] = set()
+        for deptype in ['Build-Depends', 'Build-Depends-Indep', 'Build-Depends-Arch']:
+            if deptype in sdig[src]:
+                sdig[src]['deplist'] |= parseDeps(sdig[src][deptype])
+
+    for pkg in sorted(pdig):
+        if 'Source' not in pdig[pkg]:
+            pdig[pkg]['Source'] = pkg
+        else:
+            pdig[pkg]['Source'] = pdig[pkg]['Source'].split(' ')[0]
+
+        sdig[pdig[pkg]['Source']]['binaries'].add(pkg)
+
+        pdig[pkg]['deplist'] = set()
+        for deptype in ['Depends', 'Pre-Depends']:
+            if deptype in pdig[pkg]:
+                pdig[pkg]['deplist'] |= parseDeps(pdig[pkg][deptype])
+
+    pdig['golang-any']['deplist'] = set()
+
+    for src in sdig:
+        sdig[src]['alldeps'] = expandDeps(sdig[src]['deplist'], pdig)
+
+    for pkg in pdig:
+        pdig[pkg]['alldeps'] = expandDeps(pdig[pkg]['deplist'], pdig)
+
+
+
+    # get golang source packages
+    gosrc =  {x for x in sdig if 'golang-any' in sdig[x]['alldeps']}
+    gosrc |= {x for x in sdig if 'golang-go' in sdig[x]['alldeps']}
+
+    # get affected source packages
+    affected = {x for x in gosrc if 'golang-go' in sdig[x]['alldeps']}
+
+    # get affected binary packages
+    binaries = set()
+    for src in affected:
+        for binary in sdig[src]['binaries']:
+            if pdig[binary]['Architecture'] != 'all':
+                binaries.add(binary)
+
+
+
+
+
+
+    for bin in sorted(binaries):
+        print()
+        print(bin)
+
+        candidates = {x for x in sdig[pdig[bin]['Source']]['alldeps']}
+        for candidate in sorted(candidates):
+            try:
+                if 'golang-go' in pdig[candidate]['deplist']:
+                    print("    ", candidate)
+            except KeyError:
+                pass
+
+
+
+
+        print
+
+
+
+if __name__ == '__main__':
+    main()
+
+
