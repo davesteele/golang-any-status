@@ -114,7 +114,6 @@ def main():
     affected = {x for x in gosrc if 'golang-go' in sdig[x]['alldeps']}
 
     # get affected binary packages
-    binaries = set()
     for src in sorted(affected):
         binaries = {x for x in sdig[src]['binaries'] if pdig[x]['Architecture'] != 'all'}
         causes = {x for x in sdig[src]['alldeps'] if x in pdig and 'golang-go' in pdig[x]['deplist']}
