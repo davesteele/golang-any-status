@@ -1,21 +1,20 @@
 #!/usr/bin/python3
 
-
-import os
-import codecs
-import sys
 import requests
 import lzma
 
-SOURCES = 'http://ftp.us.debian.org/debian/dists/sid/main/source/Sources.xz'
-PACKAGES = 'http://ftp.us.debian.org/debian/dists/sid/main/binary-amd64/Packages.xz'
+SOURCES = 'http://ftp.us.debian.org/debian/dists/sid/main/' \
+          'source/Sources.xz'
+PACKAGES = 'http://ftp.us.debian.org/debian/dists/sid/main/' \
+          'binary-amd64/Packages.xz'
+
 
 def makeDigest(txt):
     """Parse a Packages/Sources file to a 2-level dict, keyed on package"""
 
     def dmap(txt):
         return dict([x.split(': ', 1) for x in txt.split('\n') if ': ' in x])
-       
+
     digest = [dmap(x) for x in txt.split('\n\n') if 'Package' in x]
 
     result = {}
@@ -64,18 +63,16 @@ def expandDeps(depset, pdig):
     return result
 
 
-def main():
-    #sdig = makeDigest(codecs.open("Sources", 'r', encoding='utf-8').read())
-    #pdig = makeDigest(codecs.open("Packages", 'r', encoding='utf-8').read())
-
-    sdig = getDigest(SOURCES)
-    pdig = getDigest(PACKAGES)
-
+def fleshOutDigest(sdig, pdig):
     for src in sorted(sdig):
         sdig[src]['binaries'] = set()
 
         sdig[src]['deplist'] = set()
-        for deptype in ['Build-Depends', 'Build-Depends-Indep', 'Build-Depends-Arch']:
+        for deptype in [
+                'Build-Depends',
+                'Build-Depends-Indep',
+                'Build-Depends-Arch'
+                ]:
             if deptype in sdig[src]:
                 sdig[src]['deplist'] |= parseDeps(sdig[src][deptype])
 
@@ -92,18 +89,25 @@ def main():
             if deptype in pdig[pkg]:
                 pdig[pkg]['deplist'] |= parseDeps(pdig[pkg][deptype])
 
+
+def calcAlldeps(digest, pdig):
+    for pkg in digest:
+        digest[pkg]['alldeps'] = expandDeps(digest[pkg]['deplist'], pdig)
+
+
+def main():
+    sdig = getDigest(SOURCES)
+    pdig = getDigest(PACKAGES)
+
+    fleshOutDigest(sdig, pdig)
+
     pdig['golang-any']['deplist'] = set()
 
-    for src in sdig:
-        sdig[src]['alldeps'] = expandDeps(sdig[src]['deplist'], pdig)
-
-    for pkg in pdig:
-        pdig[pkg]['alldeps'] = expandDeps(pdig[pkg]['deplist'], pdig)
-
-
+    calcAlldeps(sdig, pdig)
+    calcAlldeps(pdig, pdig)
 
     # get golang source packages
-    gosrc =  {x for x in sdig if 'golang-any' in sdig[x]['alldeps']}
+    gosrc = {x for x in sdig if 'golang-any' in sdig[x]['alldeps']}
     gosrc |= {x for x in sdig if 'golang-go' in sdig[x]['alldeps']}
 
     # get affected source packages
@@ -111,36 +115,16 @@ def main():
 
     # get affected binary packages
     binaries = set()
-    for src in affected:
-        for binary in sdig[src]['binaries']:
-            if pdig[binary]['Architecture'] != 'all':
-                binaries.add(binary)
+    for src in sorted(affected):
+        binaries = {x for x in sdig[src]['binaries'] if pdig[x]['Architecture'] != 'all'}
+        causes = {x for x in sdig[src]['alldeps'] if x in pdig and 'golang-go' in pdig[x]['deplist']}
 
-
-
-
-
-
-    for bin in sorted(binaries):
-        print()
-        print(bin)
-
-        candidates = {x for x in sdig[pdig[bin]['Source']]['alldeps']}
-        for candidate in sorted(candidates):
-            try:
-                if 'golang-go' in pdig[candidate]['deplist']:
-                    print("    ", candidate)
-            except KeyError:
-                pass
-
-
-
-
-        print
-
+        if binaries:
+            print()
+            print("%s: %s" % (src, ', '.join(sorted(binaries))))
+            for cause in causes:
+                print("    ", cause)
 
 
 if __name__ == '__main__':
     main()
-
-
