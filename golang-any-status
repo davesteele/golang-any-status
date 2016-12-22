@@ -84,7 +84,7 @@ def fleshOutDigest(sdig, pdig):
         sdig[src]['deplist'] = set()
         for deptype in [
                 'Build-Depends',
-                'Build-Depends-Indep',
+  #              'Build-Depends-Indep',
                 'Build-Depends-Arch'
                 ]:
             if deptype in sdig[src]:
