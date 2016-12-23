@@ -3,7 +3,7 @@ which cannot be compiled across architectures due to a dependency on golang-go (
 With each is a list of any build dependencies which explicitly depend on golang-go.
 
 
-
+```
 acbuild: acbuild
      golang-go-semver-dev
      golang-github-hashicorp-errwrap-dev
@@ -1043,3 +1043,4 @@ winrmcp: winrmcp
      golang-github-masterzen-winrm-dev
      golang-github-dylanmei-iso8601-dev
      golang-github-nu7hatch-gouuid-dev
+```
