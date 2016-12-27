@@ -1,4 +1,4 @@
-This is a list of Debian Go language source packages which build compiled Go applications, and
+This is a list of Debian Go language source packages which build compiled applications, and
 which cannot be compiled across architectures due to a dependency on golang-go (vs. golang-any). 
 With each is a list of any build dependencies which explicitly depend on golang-go.
 
